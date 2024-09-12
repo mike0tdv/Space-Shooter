@@ -1,6 +1,7 @@
 import pygame
 from random import randint, uniform
 from os.path import join
+import json
 
 class Player(pygame.sprite.Sprite):
     def __init__(self, groups):
@@ -16,7 +17,7 @@ class Player(pygame.sprite.Sprite):
         self.cooldown_duration = 400 
 
         # mask
-        self.mask = pygame.mask.from_surface(self.image)
+        self.mask = pygame.mask.from_surface(self.image)  
 
     def laser_timer(self):
         if not self.can_shoot:
@@ -116,6 +117,17 @@ def healthbar(health):
 
     pygame.display.flip()
 
+def load_json(score):
+    with open("scores.json", "r") as f:
+            json_load = json.load(f)
+    high_score = json_load["score"]
+    if score > high_score:
+        high_score = score
+        json_load["score"] = score
+        with open("scores.json", "w") as f:
+            json.dump(json_load, f)
+    
+    return high_score
 
 def player_collision(health):
     if pygame.sprite.spritecollide(player, meteor_sprites, True, pygame.sprite.collide_mask):
@@ -146,6 +158,7 @@ WINDOW_WIDTH, WINDOW_HEIGHT = 1280, 720
 display_surface = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
 pygame.display.set_caption("Space shooter")
 running = True
+game_active = False
 clock = pygame.time.Clock()
 space_pressed = 0
 score = 0
@@ -156,6 +169,7 @@ star_surf = pygame.image.load(join("images", "star.png")).convert_alpha()
 laser_surf = pygame.image.load(join("images", "laser.png")).convert_alpha()
 meteor_surf = pygame.image.load(join("images", "meteor.png")).convert_alpha()
 font = pygame.font.Font(join("images", "Oxanium-Bold.ttf"), 60)
+font2 = pygame.font.Font(join("images", "Oxanium-Bold.ttf"), 40)
 explosion_frames = [pygame.image.load(join("images", "explosion", f"{i}.png")).convert_alpha() for i in range(21)]
 
 laser_sound = pygame.mixer.Sound(join("audio", "laser.wav"))
@@ -181,28 +195,68 @@ pygame.time.set_timer(meteor_event, 500)
 
 while running:
     dt = clock.tick(60) / 1000
-
-    #EVENT LOOP
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
-        if event.type == meteor_event:
-            Meteor(meteor_surf, (all_sprites, meteor_sprites))
     
-    # update
-    all_sprites.update(dt)
-    score = collisions(score)
-    health, _ = player_collision(health)
+    if game_active:
+        #EVENT LOOP
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+            if event.type == meteor_event:
+                Meteor(meteor_surf, (all_sprites, meteor_sprites))
+        
+        # update
+        all_sprites.update(dt)
+        score = collisions(score)
+        health, _ = player_collision(health)
 
-    if health <= 0:
-        running = False
+        if health <= 0:
+            game_active = False
 
-    # DRAW THE GAME
-    display_surface.fill("#3a2e3f")
-    display_score(score)
-    all_sprites.draw(display_surface)
-    healthbar(health)   
+        # DRAW THE GAME
+        display_surface.fill("#3a2e3f")
+        display_score(score)
+        all_sprites.draw(display_surface)
+        healthbar(health)   
      
+    else: 
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+        high_score = load_json(score)
+
+        all_sprites.empty()
+        meteor_sprites.empty()
+        laser_sprites.empty()
+        
+        display_surface.fill("#3a2e3f")
+        
+        game_over = font2.render("Press 'enter' to start the game", True, "Black")
+        game_over_rect = game_over.get_rect(center = (640, 600))
+        
+        last_score = font2.render(f"Last score: {score}", True, "white")
+        last_score_rect = last_score.get_rect(center = (200, 100))
+        
+        high_score_show = font2.render(f"Highest  score: {high_score}", True, "white")
+        high_score_rect = high_score_show.get_rect(center = (200, 150))
+        
+        image = pygame.image.load(join("images", "player.png")).convert_alpha()
+        image = pygame.transform.scale_by(image, 3)
+        rect = image.get_rect(center = (WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2))
+
+        display_surface.blit(image, rect)  
+        display_surface.blit(game_over, game_over_rect)  
+        display_surface.blit(last_score, last_score_rect)
+        display_surface.blit(high_score_show, high_score_rect)
+        
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_SPACE]:
+            game_active = True
+            score = 0
+            health = 180
+
+        for i in range(20):
+            Stars(all_sprites, star_surf)
+        player = Player(all_sprites)
 
     pygame.display.update()
 pygame.quit()
